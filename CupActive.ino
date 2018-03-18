@@ -5,6 +5,7 @@
 #include <drv2605.h>
 #include <HX711.h>
 
+
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
 // define vibrator motoer
 DRV2605 haptic;
@@ -13,6 +14,7 @@ float calibration_factor = -7050.0; //This value is obtained using the SparkFun_
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
 float units;
 float gCup_weight;
+int gFillCount;
 int gState; 
 
 void setup() {
@@ -30,7 +32,7 @@ void setup() {
 
   scale.set_scale(calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
   scale.tare();  //Assuming there is no weight on the scale at start up, reset the scale to 0
- 
+  
   Serial.println("Start CupActive");
 }
 
@@ -85,6 +87,26 @@ void actCupFind(int cup) {
     strip.show();
 }
 
+int fillInCup(int cup) {
+    // set the max weight according to cup
+    float val = getWeight();
+
+    if (val == gCup_weight && gFillCount < 10) {
+        gFillCount++;
+    } else {
+        gFillCount = 0;
+    }
+
+    if (gFillCount >= 10) {
+        return 1;
+    }
+
+    return 0;
+}
+
+void finish() {
+  gState = CA_INIT; 
+}
 void loop() {
     int cup = 0;
     
@@ -104,6 +126,9 @@ void loop() {
           }
           break;
         case CA_READY:
+          if (1 == fillInCup(cup)) {
+              gState = CA_DRINKING;
+          }
           break;
         case CA_DRINKING:
           break;
