@@ -1,42 +1,18 @@
 //#include <MyLedLib.h>
+
+#include "ca_common.h"
 #include <Adafruit_NeoPixel.h>
 #include <drv2605.h>
 #include <HX711.h>
-// define serial speed
-#define SERIAL_SPEED 9600
 
-// define LED
-#define STRIP_LED_PIN 12
-#define STRIP_LED_COUNT 26
-//MyLedLib *led;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
-
 // define vibrator motoer
 DRV2605 haptic;
-
 // define Load cell
 float calibration_factor = -7050.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
-#define DOUT  2
-#define CLK  0
-HX711 scale(DOUT, CLK);
+HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
 float units;
 float gCup_weight;
-
-typedef enum {
-    CA_INIT = 0,
-    CA_READY = 1,
-    CA_DRINKING = 2,
-    CA_EMPTY = 3,
-    CA_ERROR = 4
-} CA_STATE;
-
-typedef enum {
-    CA_NONE = 0,
-    CA_BEER = 1,
-    CA_SOJU = 2,
-    CA_CUSTOM = 3,
-} CA_CUP;
-
 int gState; 
 
 void setup() {
@@ -48,17 +24,13 @@ void setup() {
   strip.begin();
   strip.show();
 
-  // initialize 
+  // initialize haptic
   if (haptic.init(false, true) != 0) Serial.println("init failed!");
   if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
 
   scale.set_scale(calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
   scale.tare();  //Assuming there is no weight on the scale at start up, reset the scale to 0
-  //scale.set_scale();
-  //scale.tare();
-  //long zero_factor = scale.read_average();
-  //Serial.print("zero factor: ");
-  //Serial.println(zero_factor);
+ 
   Serial.println("Start CupActive");
 }
 
@@ -95,6 +67,7 @@ int checkCup() {
 
 void actCupFind(int cup) {
     // led and motor
+    haptic.drv2605_Play_Waveform(16);
     switch (cup) {
         case CA_SOJU:
           colorWipe(strip.Color(0, 0, 255), 100); //파란색 출력
