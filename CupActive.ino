@@ -1,138 +1,64 @@
-//#include <MyLedLib.h>
-
-#include "ca_common.h"
 #include <Adafruit_NeoPixel.h>
 #include <drv2605.h>
 #include <HX711.h>
+#include "ca_common.h"
+#include "musical_notes.h"
 
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
-// define vibrator motoer
 DRV2605 haptic;
-// define Load cell
-float calibration_factor = -7050.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+float calibration_factor = -10500.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
-float units;
 float gCup_weight;
-int gFillCount;
-int gState; 
+int gCup;
+int gState;
 
 void setup() {
   // Open Serial port to see the logs
   Serial.begin(SERIAL_SPEED);
 
-  // Create MyLedLib Instance
-  //led = new MyLedLib(STRIP_LED_PIN, STRIP_LED_COUNT);
-  strip.begin();
-  strip.show();
-
   // initialize haptic
   if (haptic.init(false, true) != 0) Serial.println("init failed!");
   if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
 
+  strip.begin();
+  
   scale.set_scale(calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
   scale.tare();  //Assuming there is no weight on the scale at start up, reset the scale to 0
-  
+
+  // Buzzer
+  pinMode(BUZZER_PIN, OUTPUT);
   Serial.println("Start CupActive");
-}
-
-float getWeight(void) {
-    units = scale.get_units(), 1;
-    if (units < 0) {
-      units = 0.00;
-    }
-    Serial.print(units);
-    Serial.println(" lbs");
-    return units;
-}
-
-int checkCup() {
-  float val = getWeight();
-  int retCup = CA_NONE;
-  gCup_weight = val;
+  initAction();
   
-  if (val > 10 && val <= 100) {
-      // soju
-      retCup = CA_SOJU;
-  } else if (val > 100 && val <= 400) {
-      // beer
-      retCup = CA_BEER;
-  } else if (val > 400) {
-      // custom
-      retCup = CA_CUSTOM;
-  } else {
-      // Cup is not detected
-  }
-
-  return retCup;
+  gState = CA_SEARCHING;
+  gCup_weight = 0;
+  gCup = CA_NONE;
 }
 
-void actCupFind(int cup) {
-    // led and motor
-    haptic.drv2605_Play_Waveform(16);
-    switch (cup) {
-        case CA_SOJU:
-          colorWipe(strip.Color(0, 0, 255), 100); //파란색 출력
-          break;
-        case CA_BEER:
-          colorWipe(strip.Color(0, 255, 0), 100); //녹색 출력
-          break;
-        case CA_CUSTOM:
-          colorWipe(strip.Color(255, 255, 0), 100); 
-          break;
-    }
-    
-    strip.clear();
-    strip.begin();
-    strip.show();
-}
-
-int fillInCup(int cup) {
-    // set the max weight according to cup
-    float val = getWeight();
-
-    if (val == gCup_weight && gFillCount < 10) {
-        gFillCount++;
-    } else {
-        gFillCount = 0;
-    }
-
-    if (gFillCount >= 10) {
-        return 1;
-    }
-
-    return 0;
-}
-
-void finish() {
-  gState = CA_INIT; 
-}
 void loop() {
     int cup = 0;
-    
     switch(gState) {
-        case CA_INIT:
+        case CA_SEARCHING:
           // check weight of the cup
-          //led->EffectOn(EFFECT_BLINKING, COLOR_WHITE, 100);
-          strip.setBrightness(50);
-          theaterChase(strip.Color(127, 127, 127), 50); // white color
           cup = checkCup();
           if (cup != CA_NONE) {
             // cup is detected
-            Serial.print("weight ");
-            Serial.println(gCup_weight);
-            gState = CA_READY;
-            actCupFind(cup);
-          }
-          break;
-        case CA_READY:
-          if (1 == fillInCup(cup)) {
-              gState = CA_DRINKING;
+            Serial.println("Cup Detected");
+            gState = CA_DRINKING;
+            cupFoundAction(cup);
           }
           break;
         case CA_DRINKING:
+          if (true == checkEmpty(gCup)) {
+              gState = CA_EMPTY;
+              emptyAction(gCup);
+          } 
           break;
         case CA_EMPTY:
+          if (false == checkEmpty(gCup)) {
+              gState = CA_DRINKING;
+          }
           break;
         case CA_ERROR:
           break;
@@ -141,6 +67,170 @@ void loop() {
     }
     delay(1);
 }
+
+void initAction(void) {
+    // Buzzer
+    //Peripheral_Sound_R2D2(BUZZER_PIN);
+    seR2D2(BUZZER_PIN);
+    // Vibration
+    vibratorOn(110, 20);
+    // LED
+    colorWipe(strip.Color(255, 255, 0), 50); // yellow color
+    delay(2000);
+    ledOff();
+}
+
+void cupFoundAction(int cup) {
+    // Buzzer
+    //Peripheral_Sound_Coo(BUZZER_PIN);
+    seCoo(BUZZER_PIN);
+    // Vibration
+    vibratorOn(15, 20);
+    // LED
+    switch (cup) {
+        case CA_SOJU:
+          colorWipe(strip.Color(0, 0, 255), 100); // Blue
+          Serial.println("Soju");
+          break;
+        case CA_BEER:
+          colorWipe(strip.Color(0, 255, 0), 100); // Green
+          Serial.println("Beer");
+          break;
+        case CA_CUSTOM:
+          colorWipe(strip.Color(255, 255, 0), 100); // Yellow
+          Serial.println("Custom");
+          break;
+        default:
+          break;
+    }
+    
+    ledOff();
+}
+
+void emptyAction(int cup) {
+    // Buzzer
+    //Peripheral_Sound_Siren(BUZZER_PIN);
+    seSiren(BUZZER_PIN);
+    // Vibration
+    vibratorOn(100, 20);
+
+    // LED
+    switch (cup) {
+        case CA_SOJU:
+          theaterChase(strip.Color(0, 0, 255), 50); // Blue
+          break;
+        case CA_BEER:
+          theaterChase(strip.Color(0, 255, 0), 50); // Green
+          break;
+        case CA_CUSTOM:
+          theaterChase(strip.Color(255, 255, 0), 50); // Yellow
+          break;
+        default:
+          break;
+    }
+
+    ledOff();
+}
+
+float getWeight(void) {
+    float units = 0;
+    units = scale.get_units(), 1;
+    if (units < 0) {
+      units = 0.00;
+    }
+    units *= CONVERT_GRAM;
+    Serial.println(units);
+    return units;
+}
+
+int checkCup() {
+  float val = getWeight();
+  int retCup = CA_NONE;
+
+  if (gCup_weight != 0) {
+    Serial.println("Cup already selected");
+  } else {
+    if (val > SOJU_WEIGHT_MIN && val <= 100) {
+        // soju
+        retCup = CA_SOJU;
+        gCup_weight = val;
+        gCup = CA_SOJU;
+        Serial.println(gCup_weight);
+    } else if (val > BEER_WEIGHT_MIN && val <= 300) {
+        // beer
+        retCup = CA_BEER;
+        gCup_weight = val;
+        gCup - CA_BEER;
+        Serial.println(gCup_weight);
+    } else if (val > 300) {
+        // custom
+        retCup = CA_CUSTOM;
+        gCup_weight = val;
+        gCup = CA_CUSTOM;
+        Serial.println(gCup_weight);
+    }
+  }
+
+  return retCup;
+}
+
+bool checkEmpty(int cup) {
+    // set the max weight according to cup
+    bool bRet = false;
+    float val = getWeight();
+    /* soju : (60g ~ 150g) */
+    /* beer : (100g ~ 300g) */
+    switch (gCup) {
+        case CA_SOJU:
+          if (val >= SOJU_WEIGHT_MIN && val <= SOJU_WEIGHT_MAX) {
+              // check empty
+              if (val >= gCup_weight && val < (gCup_weight+EMPTY_WEIGHT_MARGIN)) {
+                  bRet = true;
+                  Serial.println("Empty Soju Cup");
+              } else {
+                if ((val - gCup_weight) > 0) {
+                  float pixel = (val - gCup_weight) * CONVERT_PIXEL;
+                  Serial.println(pixel);
+                  for(uint16_t i=0; i < strip.numPixels(); i++) {
+                      strip.setPixelColor(i, strip.Color(0, 0, (int)pixel));
+                  }
+                  strip.show();  
+                }
+              }
+              
+          } 
+          break;
+        case CA_BEER:
+          if (val >= BEER_WEIGHT_MIN && val <= BEER_WEIGHT_MAX) {
+              // check empty
+              if (gCup_weight >= val && gCup_weight < (gCup_weight+EMPTY_WEIGHT_MARGIN)) {
+                  bRet = true;
+              }
+              
+          } 
+          break;
+        case CA_CUSTOM:
+          break;
+        default:
+          break;
+    }
+    
+    return bRet;
+}
+
+void ledOff() 
+{
+    strip.clear();
+    strip.show();  
+}
+
+void vibratorOn(int num, int iteration) 
+{
+    for (int i = 0; i < iteration; i++) {
+        haptic.drv2605_Play_Waveform(num);  
+    }
+}
+
 
 // LED custom functions
 //입력한 색으로 LED를 깜빡거리며 표현한다
@@ -169,6 +259,95 @@ void colorWipe(uint32_t c, uint8_t wait) {
   }
 }
 
+void rainbowCycle(uint8_t wait) {
+  uint16_t i, j;
+
+  for(j=0; j<256*5; j++) { 
+    for(i=0; i< strip.numPixels(); i++) {
+      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
+    }
+    strip.show();
+    delay(wait);
+  }
+}
+
+//255가지의 색을 나타내는 함수
+uint32_t Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } else if(WheelPos < 170) {
+   WheelPos -= 85;
+   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  } else {
+   WheelPos -= 170;
+   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
+void beep(int speakerPin, float noteFrequency, long noteDuration) {
+  int x;
+  // Convert the frequency to microseconds
+  float microsecondsPerWave = 1000000 / noteFrequency;
+  // Calculate how many milliseconds there are per HIGH/LOW cycles.
+  float millisecondsPerCycle = 1000 / (microsecondsPerWave * 2);
+  // Multiply noteDuration * number or cycles per millisecond
+  float loopTime = noteDuration * millisecondsPerCycle;
+  // Play the note for the calculated loopTime.
+  for (x = 0; x < loopTime; x++) {
+    digitalWrite(speakerPin, HIGH);
+    delayMicroseconds(microsecondsPerWave);
+    digitalWrite(speakerPin, LOW);
+    delayMicroseconds(microsecondsPerWave);
+  }
+}
+
+void seCoo(int pinNo) {
+  int i;
+
+  for (i = 0; i < 150; i = i + 10) {
+    beep(pinNo, 1295 - i, 22);
+    beep(pinNo, 1295 + i, 22);
+  }
+}
+
+void seOh(int pinNo) {
+  int i;
+
+  for (i = 800; i < 2000; i = i + 100) {
+    beep(pinNo, i, 11);
+  }
+  for (i = 2000; i > 50; i = i - 100) {
+    beep(pinNo, i, 11);
+  }
+}
+
+void seSiren(int pinNo) {
+  int i;
+
+  for (i = 1; i < 3; i++) {
+    beep(pinNo, 550, 494);
+    beep(pinNo, 400, 494);
+  }
+}
+
+void seR2D2(int pinNo) {
+  beep(pinNo, note_A7, 100); // A
+  beep(pinNo, note_G7, 100); // G
+  beep(pinNo, note_E7, 100); // E
+  beep(pinNo, note_C7, 100); // C
+  beep(pinNo, note_D7, 100); // D
+  beep(pinNo, note_B7, 100); // B
+  beep(pinNo, note_F7, 100); // F
+  beep(pinNo, note_C8, 100); // C
+  beep(pinNo, note_A7, 100); // A
+  beep(pinNo, note_G7, 100); // G
+  beep(pinNo, note_E7, 100); // E
+  beep(pinNo, note_C7, 100); // C
+  beep(pinNo, note_D7, 100); // D
+  beep(pinNo, note_B7, 100); // B
+  beep(pinNo, note_F7, 100); // F
+  beep(pinNo, note_C8, 100); // C
+}
 /*
  
 
