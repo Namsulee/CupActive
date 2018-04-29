@@ -1,39 +1,39 @@
 #include <Adafruit_NeoPixel.h>
+#include <LedControl.h>
 #include <drv2605.h>
 #include <HX711.h>
-#include "ca_common.h"
+#include "binary.h"
 #include "musical_notes.h"
-
+#include "ca_common.h"
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
-DRV2605 haptic;
-float calibration_factor = -10500.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+LedControl lc = LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
+DRV2605 haptic;
+
+// delay time between faces
+unsigned long delaytime=1000;
+
+// happy face
+byte hf[8]= {B00111100,B01000010,B10100101,B10000001,B10100101,B10011001,B01000010,B00111100};
+// neutral face
+byte nf[8]={B00111100, B01000010,B10100101,B10000001,B10111101,B10000001,B01000010,B00111100};
+// sad face
+byte sf[8]= {B00111100,B01000010,B10100101,B10000001,B10011001,B10100101,B01000010,B00111100};
+
 float gCup_weight;
 int gCup;
 int gState;
 
 void setup() {
-  // Open Serial port to see the logs
-  Serial.begin(SERIAL_SPEED);
-
-  // initialize haptic
-  if (haptic.init(false, true) != 0) Serial.println("init failed!");
-  if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
-
-  strip.begin();
-  
-  scale.set_scale(calibration_factor); //This value is obtained by using the SparkFun_HX711_Calibration sketch
-  scale.tare();  //Assuming there is no weight on the scale at start up, reset the scale to 0
-
-  // Buzzer
-  pinMode(BUZZER_PIN, OUTPUT);
-  Serial.println("Start CupActive");
+  initDevice();
   initAction();
   
   gState = CA_SEARCHING;
   gCup_weight = 0;
   gCup = CA_NONE;
+
+  Serial.println("Start CupActive");
 }
 
 void loop() {
@@ -68,9 +68,37 @@ void loop() {
     delay(1);
 }
 
+void initDevice(void) {
+
+  // Open Serial port to see the logs
+  Serial.begin(SERIAL_SPEED);
+  
+  // initialize haptic
+  if (haptic.init(false, true) != 0) Serial.println("init failed!");
+  if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
+  
+  // Strip LED Initialize
+  strip.begin();
+
+  // Load cell Initialize
+  scale.set_scale(CALIBRATION_FACTOR); //This value is obtained by using the SparkFun_HX711_Calibration sketch
+  scale.tare();  //Assuming there is no weight on the scale at start up, reset the scale to 0
+  long zero_factor = scale.read_average(); //Get a baseline reading
+  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
+  Serial.println(zero_factor);
+  
+  // Buzzer
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  // Dot Matrix
+  lc.shutdown(0,false);
+  // Set brightness to a medium value
+  lc.setIntensity(0,8);
+  // Clear the display
+  lc.clearDisplay(0);  
+}
 void initAction(void) {
     // Buzzer
-    //Peripheral_Sound_R2D2(BUZZER_PIN);
     seR2D2(BUZZER_PIN);
     // Vibration
     vibratorOn(110, 20);
@@ -82,7 +110,6 @@ void initAction(void) {
 
 void cupFoundAction(int cup) {
     // Buzzer
-    //Peripheral_Sound_Coo(BUZZER_PIN);
     seCoo(BUZZER_PIN);
     // Vibration
     vibratorOn(15, 20);
@@ -109,7 +136,6 @@ void cupFoundAction(int cup) {
 
 void emptyAction(int cup) {
     // Buzzer
-    //Peripheral_Sound_Siren(BUZZER_PIN);
     seSiren(BUZZER_PIN);
     // Vibration
     vibratorOn(100, 20);
@@ -138,7 +164,7 @@ float getWeight(void) {
     if (units < 0) {
       units = 0.00;
     }
-    units *= CONVERT_GRAM;
+   
     Serial.println(units);
     return units;
 }
@@ -348,6 +374,42 @@ void seR2D2(int pinNo) {
   beep(pinNo, note_F7, 100); // F
   beep(pinNo, note_C8, 100); // C
 }
+
+void drawFaces(){
+  // Display sad face
+  lc.setRow(0,0,sf[0]);
+  lc.setRow(0,1,sf[1]);
+  lc.setRow(0,2,sf[2]);
+  lc.setRow(0,3,sf[3]);
+  lc.setRow(0,4,sf[4]);
+  lc.setRow(0,5,sf[5]);
+  lc.setRow(0,6,sf[6]);
+  lc.setRow(0,7,sf[7]);
+  delay(delaytime);
+  
+  // Display neutral face
+  lc.setRow(0,0,nf[0]);
+  lc.setRow(0,1,nf[1]);
+  lc.setRow(0,2,nf[2]);
+  lc.setRow(0,3,nf[3]);
+  lc.setRow(0,4,nf[4]);
+  lc.setRow(0,5,nf[5]);
+  lc.setRow(0,6,nf[6]);
+  lc.setRow(0,7,nf[7]);
+  delay(delaytime);
+  
+  // Display happy face
+  lc.setRow(0,0,hf[0]);
+  lc.setRow(0,1,hf[1]);
+  lc.setRow(0,2,hf[2]);
+  lc.setRow(0,3,hf[3]);
+  lc.setRow(0,4,hf[4]);
+  lc.setRow(0,5,hf[5]);
+  lc.setRow(0,6,hf[6]);
+  lc.setRow(0,7,hf[7]);
+  delay(delaytime);
+}
+
 /*
  
 

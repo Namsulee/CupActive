@@ -15,6 +15,14 @@
 // define buzzer
 #define BUZZER_PIN 16
 
+// define Dot Matrix
+#define DOTMATRIX_DIN   13
+#define DOTMATRIX_CLK   14
+#define DOTMATRIX_CS    15
+
+#define TRUE 1
+#define FALSE 0
+
 // define cup weight
 #define SOJU_WEIGHT_MIN 60
 #define SOJU_WEIGHT_MAX 120
@@ -22,8 +30,9 @@
 #define BEER_WEIGHT_MAX 300
 #define EMPTY_WEIGHT_MARGIN 7
 
+float CALIBRATION_FACTOR = -2600.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+
 // define variable
-#define CONVERT_GRAM 4.535923
 #define CONVERT_PIXEL 2.55
 typedef enum {
     CA_SEARCHING = 0,
