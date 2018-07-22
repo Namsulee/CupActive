@@ -1,6 +1,7 @@
 #ifndef _CA_COMMON_H_
 #define _CA_COMMON_H_
 
+#define UNIQUE_ID "hero"
 // define serial speed
 #define SERIAL_SPEED 9600
 
@@ -26,19 +27,26 @@
 // define cup weight
 #define SOJU_WEIGHT_MIN 60
 #define SOJU_WEIGHT_MAX 120
-#define BEER_WEIGHT_MIN 100
-#define BEER_WEIGHT_MAX 300
-#define EMPTY_WEIGHT_MARGIN 7
 
-float CALIBRATION_FACTOR = -2600.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+#define BEER_WEIGHT_MIN 260
+#define BEER_WEIGHT_MAX 270
+
+float CALIBRATION_FACTOR = -2820.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+
+// Wifi information
+const char* ssid     = "ynshero-main";
+const char* password = "qa1ws2ed3";
+char path[] = "/ws";
+char host[] = "192.168.0.8";
 
 // define variable
 #define CONVERT_PIXEL 2.55
 typedef enum {
-    CA_SEARCHING = 0,
-    CA_DRINKING = 1,
-    CA_EMPTY = 2,
-    CA_ERROR = 3
+    CA_REGISTERING = 0,
+    CA_USERSETTING = 1,
+    CA_DRINKING = 2,
+    CA_EMPTY = 3,
+    CA_ERROR = 4
 } CA_STATE;
 
 typedef enum {

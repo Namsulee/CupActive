@@ -1,59 +1,97 @@
+#include <ESP8266WiFi.h>
+#include <WebSocketClient.h>
+#include <ArduinoJson.h> 
 #include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+  #include <avr/power.h>
+#endif
 #include <LedControl.h>
 #include <drv2605.h>
 #include <HX711.h>
 #include "binary.h"
 #include "musical_notes.h"
+#include "led_action.h"
 #include "ca_common.h"
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
 LedControl lc = LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
-DRV2605 haptic;
-
-// delay time between faces
-unsigned long delaytime=1000;
-
-// happy face
-byte hf[8]= {B00111100,B01000010,B10100101,B10000001,B10100101,B10011001,B01000010,B00111100};
-// neutral face
-byte nf[8]={B00111100, B01000010,B10100101,B10000001,B10111101,B10000001,B01000010,B00111100};
-// sad face
-byte sf[8]= {B00111100,B01000010,B10100101,B10000001,B10011001,B10100101,B01000010,B00111100};
+DRV2605 haptic;  
+WebSocketClient webSocketClient;
+// Use WiFiClient class to create TCP connections
+WiFiClient client;
 
 float gCup_weight;
 int gCup;
 int gState;
+int gCount;
+int gFill;
+int gCapability;
 
 void setup() {
+  gState = CA_REGISTERING;
+  gCup_weight = 0;
+  gCount = 0;
+  gCup = CA_BEER;
+  gFill = false;
+  
   initDevice();
   initAction();
-  
-  gState = CA_SEARCHING;
-  gCup_weight = 0;
-  gCup = CA_NONE;
+  initWifi();
 
   Serial.println("Start CupActive");
 }
 
 void loop() {
-    int cup = 0;
+
     switch(gState) {
-        case CA_SEARCHING:
-          // check weight of the cup
-          cup = checkCup();
-          if (cup != CA_NONE) {
-            // cup is detected
-            Serial.println("Cup Detected");
-            gState = CA_DRINKING;
-            cupFoundAction(cup);
-          }
+        case CA_REGISTERING:
+          // Register cup holder to the server
+          registerCup(UNIQUE_ID);
+          break;
+        case CA_USERSETTING:
+          setUserCapability();
           break;
         case CA_DRINKING:
           if (true == checkEmpty(gCup)) {
               gState = CA_EMPTY;
+              if (gFill == true) {
+                gFill = false;
+                gCount++;
+                draw(gCount);
+              }
               emptyAction(gCup);
-          } 
+          } else {
+            if (gCapability > gCount) {
+              // Alert
+              strip.setBrightness(255);
+              ledOn(strip.Color(255, 0, 0));
+            } else {
+              float val = getWeight();
+              Serial.print(val);
+              Serial.println();
+          
+              int inside = val;
+              int cal = 0;
+              uint8_t portion = 0;
+              if (inside > 0) {
+                //Serial.println(inside*2.55);
+                cal = inside * 2.55f;
+                if (cal > 255) {
+                  portion = 255;
+                } else {
+                  portion = cal;
+                }
+                if (portion > 170) {
+                  gFill = true;
+                }
+                strip.setBrightness(portion);
+                ledOn(strip.Color(0, 255, 0)); // Green
+              } else {
+                ledOff();
+              }
+            }
+          }
           break;
         case CA_EMPTY:
           if (false == checkEmpty(gCup)) {
@@ -65,17 +103,28 @@ void loop() {
         default:
           break;
     }
+    
     delay(1);
 }
 
+int getCupState() {
+  return gState;
+}
+
+void setCupState(int state) {
+  int prevState = getCupState();
+  if (prevState != state) {
+    gState = state;
+  }
+}
 void initDevice(void) {
 
   // Open Serial port to see the logs
   Serial.begin(SERIAL_SPEED);
   
   // initialize haptic
-  if (haptic.init(false, true) != 0) Serial.println("init failed!");
-  if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
+  //if (haptic.init(false, true) != 0) Serial.println("init failed!");
+  //if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
   
   // Strip LED Initialize
   strip.begin();
@@ -96,16 +145,150 @@ void initDevice(void) {
   lc.setIntensity(0,8);
   // Clear the display
   lc.clearDisplay(0);  
+
+  draw(0);
 }
 void initAction(void) {
     // Buzzer
-    seR2D2(BUZZER_PIN);
+    //seR2D2(BUZZER_PIN);
     // Vibration
-    vibratorOn(110, 20);
+    //vibratorOn(110, 20);
     // LED
-    colorWipe(strip.Color(255, 255, 0), 50); // yellow color
+    ledOn(strip.Color(255, 255, 255)); // white color
     delay(2000);
-    ledOff();
+}
+
+void initWifi(void) {
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("");
+  Serial.println("WiFi connected");  
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+
+  delay(5000);
+  
+
+  // Connect to the websocket server
+  if (client.connect("192.168.0.8", 8080)) {
+    Serial.println("Connected");
+  } else {
+    Serial.println("Connection failed.");
+    while(1) {
+      // Hang on failure
+    }
+  }
+
+  // Handshake with the server
+  webSocketClient.path = path;
+  webSocketClient.host = host;
+  if (webSocketClient.handshake(client)) {
+    Serial.println("Handshake successful");
+  } else {
+    Serial.println("Handshake failed.");
+    while(1) {
+      // Hang on failure
+    }  
+  }
+}
+
+void registerCup(String id) {
+  DynamicJsonBuffer jsonBuffer;
+  char jsonChar[100];
+  
+  if (getCupState() == CA_REGISTERING) {
+    JsonObject& json = jsonBuffer.createObject();
+  
+    json["cmd"] = "register";
+    json["id"] = id;
+    json.printTo(Serial);
+    if (client.connected()) {
+      json.printTo(jsonChar);
+       webSocketClient.sendData(jsonChar);
+       setCupState(CA_USERSETTING);
+    } else {
+      Serial.println("Client disconnected.");
+      while (1) {
+        // Hang on disconnect.
+      }
+    }
+  }
+}
+
+void setUserCapability() {
+  String data;
+  char cmd[20];
+  
+  if (client.connected()) {
+    webSocketClient.getData(data);
+    if (data.length() > 0) {
+      Serial.print("Received data: ");
+      Serial.println(data); 
+      // parsing
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject& json = jsonBuffer.parseObject(data);
+      json.printTo(Serial);
+
+      if (json.success()) {
+          Serial.println("\nparsed json");
+          strcpy(cmd, json["cmd"]);
+          if (cmd == "usersetting") {
+            gCapability = json["capability"];
+            setCupState(CA_DRINKING);
+          }
+      } else {
+        Serial.println("failed to load json config");
+      }
+    } else {
+      Serial.print("data is 0");
+      Serial.println();
+    }
+  } else {
+    Serial.println("Client disconnected.");
+    while (1) {
+      // Hang on disconnect.
+    }
+  }
+}
+
+void receiveDataWS() {
+  String data;
+    
+  if (client.connected()) {
+    webSocketClient.getData(data);
+    if (data.length() > 0) {
+      Serial.print("Received data: ");
+      Serial.println(data);
+    }
+  } else {
+    Serial.println("Client disconnected.");
+    while (1) {
+      // Hang on disconnect.
+    }
+  }
+}
+
+void sendDataWS() {
+  String data;
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+   
+  if (client.connected()) {
+    data = "hello world";
+    webSocketClient.sendData(data);
+ 
+  } else {
+    Serial.println("Client disconnected.");
+    while (1) {
+      // Hang on disconnect.
+    }
+  }
 }
 
 void cupFoundAction(int cup) {
@@ -120,7 +303,8 @@ void cupFoundAction(int cup) {
           Serial.println("Soju");
           break;
         case CA_BEER:
-          colorWipe(strip.Color(0, 255, 0), 100); // Green
+          ledOn(strip.Color(0, 255, 0));
+          //colorWipe(strip.Color(0, 255, 0), 100); // Green
           Serial.println("Beer");
           break;
         case CA_CUSTOM:
@@ -136,9 +320,9 @@ void cupFoundAction(int cup) {
 
 void emptyAction(int cup) {
     // Buzzer
-    seSiren(BUZZER_PIN);
+    //seSiren(BUZZER_PIN);
     // Vibration
-    vibratorOn(100, 20);
+    //vibratorOn(100, 20);
 
     // LED
     switch (cup) {
@@ -146,7 +330,7 @@ void emptyAction(int cup) {
           theaterChase(strip.Color(0, 0, 255), 50); // Blue
           break;
         case CA_BEER:
-          theaterChase(strip.Color(0, 255, 0), 50); // Green
+          theaterChase(strip.Color(255, 255, 0), 50); // yellow
           break;
         case CA_CUSTOM:
           theaterChase(strip.Color(255, 255, 0), 50); // Yellow
@@ -155,7 +339,7 @@ void emptyAction(int cup) {
           break;
     }
 
-    ledOff();
+    //ledOff();
 }
 
 float getWeight(void) {
@@ -165,7 +349,8 @@ float getWeight(void) {
       units = 0.00;
     }
    
-    Serial.println(units);
+    Serial.print(units);
+    Serial.println();
     return units;
 }
 
@@ -207,33 +392,13 @@ bool checkEmpty(int cup) {
     /* soju : (60g ~ 150g) */
     /* beer : (100g ~ 300g) */
     switch (gCup) {
-        case CA_SOJU:
-          if (val >= SOJU_WEIGHT_MIN && val <= SOJU_WEIGHT_MAX) {
-              // check empty
-              if (val >= gCup_weight && val < (gCup_weight+EMPTY_WEIGHT_MARGIN)) {
-                  bRet = true;
-                  Serial.println("Empty Soju Cup");
-              } else {
-                if ((val - gCup_weight) > 0) {
-                  float pixel = (val - gCup_weight) * CONVERT_PIXEL;
-                  Serial.println(pixel);
-                  for(uint16_t i=0; i < strip.numPixels(); i++) {
-                      strip.setPixelColor(i, strip.Color(0, 0, (int)pixel));
-                  }
-                  strip.show();  
-                }
-              }
-              
-          } 
-          break;
         case CA_BEER:
-          if (val >= BEER_WEIGHT_MIN && val <= BEER_WEIGHT_MAX) {
+            if (val >= 0 && val <= 5) {
               // check empty
-              if (gCup_weight >= val && gCup_weight < (gCup_weight+EMPTY_WEIGHT_MARGIN)) {
-                  bRet = true;
-              }
-              
-          } 
+              bRet = true;
+            } else {
+              bRet = false; 
+            }
           break;
         case CA_CUSTOM:
           break;
@@ -244,10 +409,112 @@ bool checkEmpty(int cup) {
     return bRet;
 }
 
+void ledOn(uint32_t c)
+{
+  for(uint16_t i=0; i < strip.numPixels(); i++) {
+      strip.setPixelColor(i, c);
+  }
+  strip.show();
+}
+
 void ledOff() 
 {
     strip.clear();
     strip.show();  
+}
+
+void draw(int num) {
+  if (num == 1) {
+    lc.setRow(0,0,one[0]);
+    lc.setRow(0,1,one[1]);
+    lc.setRow(0,2,one[2]);
+    lc.setRow(0,3,one[3]);
+    lc.setRow(0,4,one[4]);
+    lc.setRow(0,5,one[5]);
+    lc.setRow(0,6,one[6]);
+    lc.setRow(0,7,one[7]);
+  } else if (num == 2) {
+    lc.setRow(0,0,two[0]);
+    lc.setRow(0,1,two[1]);
+    lc.setRow(0,2,two[2]);
+    lc.setRow(0,3,two[3]);
+    lc.setRow(0,4,two[4]);
+    lc.setRow(0,5,two[5]);
+    lc.setRow(0,6,two[6]);
+    lc.setRow(0,7,two[7]);
+  } else if (num == 3) {
+    lc.setRow(0,0,three[0]);
+    lc.setRow(0,1,three[1]);
+    lc.setRow(0,2,three[2]);
+    lc.setRow(0,3,three[3]);
+    lc.setRow(0,4,three[4]);
+    lc.setRow(0,5,three[5]);
+    lc.setRow(0,6,three[6]);
+    lc.setRow(0,7,three[7]);
+  } else if (num == 4) {
+    lc.setRow(0,0,four[0]);
+    lc.setRow(0,1,four[1]);
+    lc.setRow(0,2,four[2]);
+    lc.setRow(0,3,four[3]);
+    lc.setRow(0,4,four[4]);
+    lc.setRow(0,5,four[5]);
+    lc.setRow(0,6,four[6]);
+    lc.setRow(0,7,four[7]);
+  } else if (num == 5) {
+    lc.setRow(0,0,five[0]);
+    lc.setRow(0,1,five[1]);
+    lc.setRow(0,2,five[2]);
+    lc.setRow(0,3,five[3]);
+    lc.setRow(0,4,five[4]);
+    lc.setRow(0,5,five[5]);
+    lc.setRow(0,6,five[6]);
+    lc.setRow(0,7,five[7]);
+  } else if (num == 6) {
+    lc.setRow(0,0,six[0]);
+    lc.setRow(0,1,six[1]);
+    lc.setRow(0,2,six[2]);
+    lc.setRow(0,3,six[3]);
+    lc.setRow(0,4,six[4]);
+    lc.setRow(0,5,six[5]);
+    lc.setRow(0,6,six[6]);
+    lc.setRow(0,7,six[7]);
+  } else if (num == 7) {
+    lc.setRow(0,0,seven[0]);
+    lc.setRow(0,1,seven[1]);
+    lc.setRow(0,2,seven[2]);
+    lc.setRow(0,3,seven[3]);
+    lc.setRow(0,4,seven[4]);
+    lc.setRow(0,5,seven[5]);
+    lc.setRow(0,6,seven[6]);
+    lc.setRow(0,7,seven[7]);
+  } else if (num == 8) {
+    lc.setRow(0,0,eight[0]);
+    lc.setRow(0,1,eight[1]);
+    lc.setRow(0,2,eight[2]);
+    lc.setRow(0,3,eight[3]);
+    lc.setRow(0,4,eight[4]);
+    lc.setRow(0,5,eight[5]);
+    lc.setRow(0,6,eight[6]);
+    lc.setRow(0,7,eight[7]);
+  } else if (num == 9) {
+    lc.setRow(0,0,nine[0]);
+    lc.setRow(0,1,nine[1]);
+    lc.setRow(0,2,nine[2]);
+    lc.setRow(0,3,nine[3]);
+    lc.setRow(0,4,nine[4]);
+    lc.setRow(0,5,nine[5]);
+    lc.setRow(0,6,nine[6]);
+    lc.setRow(0,7,nine[7]);
+  } else {
+    lc.setRow(0,0,zero[0]);
+    lc.setRow(0,1,zero[1]);
+    lc.setRow(0,2,zero[2]);
+    lc.setRow(0,3,zero[3]);
+    lc.setRow(0,4,zero[4]);
+    lc.setRow(0,5,zero[5]);
+    lc.setRow(0,6,zero[6]);
+    lc.setRow(0,7,zero[7]);
+  }
 }
 
 void vibratorOn(int num, int iteration) 
@@ -374,89 +641,3 @@ void seR2D2(int pinNo) {
   beep(pinNo, note_F7, 100); // F
   beep(pinNo, note_C8, 100); // C
 }
-
-void drawFaces(){
-  // Display sad face
-  lc.setRow(0,0,sf[0]);
-  lc.setRow(0,1,sf[1]);
-  lc.setRow(0,2,sf[2]);
-  lc.setRow(0,3,sf[3]);
-  lc.setRow(0,4,sf[4]);
-  lc.setRow(0,5,sf[5]);
-  lc.setRow(0,6,sf[6]);
-  lc.setRow(0,7,sf[7]);
-  delay(delaytime);
-  
-  // Display neutral face
-  lc.setRow(0,0,nf[0]);
-  lc.setRow(0,1,nf[1]);
-  lc.setRow(0,2,nf[2]);
-  lc.setRow(0,3,nf[3]);
-  lc.setRow(0,4,nf[4]);
-  lc.setRow(0,5,nf[5]);
-  lc.setRow(0,6,nf[6]);
-  lc.setRow(0,7,nf[7]);
-  delay(delaytime);
-  
-  // Display happy face
-  lc.setRow(0,0,hf[0]);
-  lc.setRow(0,1,hf[1]);
-  lc.setRow(0,2,hf[2]);
-  lc.setRow(0,3,hf[3]);
-  lc.setRow(0,4,hf[4]);
-  lc.setRow(0,5,hf[5]);
-  lc.setRow(0,6,hf[6]);
-  lc.setRow(0,7,hf[7]);
-  delay(delaytime);
-}
-
-/*
- 
-
-#include "HX711.h"
-
-#define DOUT  2
-#define CLK  0
-
-HX711 scale(DOUT, CLK);
-
-float calibration_factor = -7050; //-7050 worked for my 440lb max scale setup
-
-void setup() {
-  Serial.begin(9600);
-  Serial.println("HX711 calibration sketch");
-  Serial.println("Remove all weight from scale");
-  Serial.println("After readings begin, place known weight on scale");
-  Serial.println("Press + or a to increase calibration factor");
-  Serial.println("Press - or z to decrease calibration factor");
-
-  scale.set_scale();
-  scale.tare(); //Reset the scale to 0
-
-  long zero_factor = scale.read_average(); //Get a baseline reading
-  Serial.print("Zero factor: "); //This can be used to remove the need to tare the scale. Useful in permanent scale projects.
-  Serial.println(zero_factor);
-}
-
-void loop() {
-
-  scale.set_scale(calibration_factor); //Adjust to this calibration factor
-
-  Serial.print("Reading: ");
-  Serial.print(scale.get_units(), 1);
-  Serial.print(" lbs"); //Change this to kg and re-adjust the calibration factor if you follow SI units like a sane person
-  Serial.print(" calibration_factor: ");
-  Serial.print(calibration_factor);
-  Serial.println();
-
-  if(Serial.available())
-  {
-    char temp = Serial.read();
-    if(temp == '+' || temp == 'a')
-      calibration_factor += 10;
-    else if(temp == '-' || temp == 'z')
-      calibration_factor -= 10;
-  }
-}
-*/
-
