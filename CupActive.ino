@@ -6,7 +6,8 @@
   #include <avr/power.h>
 #endif
 #include <LedControl.h>
-#include <drv2605.h>
+#include <Wire.h>
+#include <Adafruit_DRV2605.h>
 #include <HX711.h>
 #include "binary.h"
 #include "musical_notes.h"
@@ -16,7 +17,7 @@
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
 LedControl lc = LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
-DRV2605 haptic;  
+Adafruit_DRV2605 haptic;  
 WebSocketClient webSocketClient;
 // Use WiFiClient class to create TCP connections
 WiFiClient client;
@@ -62,7 +63,7 @@ void loop() {
               }
               emptyAction(gCup);
           } else {
-            if (gCapability > gCount) {
+            if (gCount > gCapability) {
               // Alert
               strip.setBrightness(255);
               ledOn(strip.Color(255, 0, 0));
@@ -125,7 +126,9 @@ void initDevice(void) {
   // initialize haptic
   //if (haptic.init(false, true) != 0) Serial.println("init failed!");
   //if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
-  
+  haptic.begin();
+  haptic.setMode(DRV2605_MODE_INTTRIG); 
+   
   // Strip LED Initialize
   strip.begin();
 
@@ -519,9 +522,11 @@ void draw(int num) {
 
 void vibratorOn(int num, int iteration) 
 {
-    for (int i = 0; i < iteration; i++) {
-        haptic.drv2605_Play_Waveform(num);  
-    }
+    haptic.setWaveform(0, num);
+    haptic.setWaveform(1, 0);
+
+    haptic.go();
+    delay(1000);
 }
 
 
