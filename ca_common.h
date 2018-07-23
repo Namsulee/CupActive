@@ -3,7 +3,7 @@
 
 #define UNIQUE_ID "hero"
 // define serial speed
-#define SERIAL_SPEED 9600
+#define SERIAL_SPEED 115200
 
 // define LED
 #define STRIP_LED_PIN 12

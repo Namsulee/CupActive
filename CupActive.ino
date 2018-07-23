@@ -5,9 +5,10 @@
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
+
 #include <LedControl.h>
 #include <Wire.h>
-#include <Adafruit_DRV2605.h>
+#include "Adafruit_DRV2605.h"
 #include <HX711.h>
 #include "binary.h"
 #include "musical_notes.h"
@@ -17,7 +18,8 @@
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
 LedControl lc = LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
-Adafruit_DRV2605 haptic;  
+//DRV2605 haptic;  
+Adafruit_DRV2605 haptic;
 WebSocketClient webSocketClient;
 // Use WiFiClient class to create TCP connections
 WiFiClient client;
@@ -54,16 +56,16 @@ void loop() {
           setUserCapability();
           break;
         case CA_DRINKING:
-          if (true == checkEmpty(gCup)) {
+          if (gCount > 0 && true == checkEmpty(gCup)) {
               gState = CA_EMPTY;
               if (gFill == true) {
                 gFill = false;
-                gCount++;
+                gCount--;
                 draw(gCount);
               }
               emptyAction(gCup);
           } else {
-            if (gCount > gCapability) {
+            if (gCount == 0) {
               // Alert
               strip.setBrightness(255);
               ledOn(strip.Color(255, 0, 0));
@@ -127,8 +129,8 @@ void initDevice(void) {
   //if (haptic.init(false, true) != 0) Serial.println("init failed!");
   //if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
   haptic.begin();
-  haptic.setMode(DRV2605_MODE_INTTRIG); 
-   
+  haptic.selectLibrary(1);
+  haptic.setMode(DRV2605_MODE_INTTRIG);
   // Strip LED Initialize
   strip.begin();
 
@@ -148,14 +150,12 @@ void initDevice(void) {
   lc.setIntensity(0,8);
   // Clear the display
   lc.clearDisplay(0);  
-
-  draw(0);
 }
 void initAction(void) {
     // Buzzer
     //seR2D2(BUZZER_PIN);
     // Vibration
-    //vibratorOn(110, 20);
+    vibratorOn(110, 20);
     // LED
     ledOn(strip.Color(255, 255, 255)); // white color
     delay(2000);
@@ -241,16 +241,23 @@ void setUserCapability() {
       if (json.success()) {
           Serial.println("\nparsed json");
           strcpy(cmd, json["cmd"]);
-          if (cmd == "usersetting") {
+          Serial.println(cmd);
+          if (strcmp(cmd,"usersetting")==0) {
             gCapability = json["capability"];
+            Serial.println(gCapability);
+            Serial.println(gCount);
+            gCount = gCapability;
+            draw(gCapability);
             setCupState(CA_DRINKING);
+          } else {
+            Serial.println("not supported command");
           }
       } else {
         Serial.println("failed to load json config");
       }
     } else {
-      Serial.print("data is 0");
-      Serial.println();
+      //Serial.print("data is 0");
+      //Serial.println();
     }
   } else {
     Serial.println("Client disconnected.");
@@ -522,11 +529,14 @@ void draw(int num) {
 
 void vibratorOn(int num, int iteration) 
 {
-    haptic.setWaveform(0, num);
-    haptic.setWaveform(1, 0);
-
-    haptic.go();
-    delay(1000);
+   // for (int i = 0; i < iteration; i++) {
+       // haptic.drv2605_Play_Waveform(num);  
+       
+       haptic.setWaveform(0, num);
+       haptic.setWaveform(1, 0);
+       haptic.go();
+       delay(1000);
+    //}
 }
 
 
