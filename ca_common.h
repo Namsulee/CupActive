@@ -42,11 +42,14 @@ char host[] = "192.168.0.8";
 // define variable
 #define CONVERT_PIXEL 2.55
 typedef enum {
-    CA_REGISTERING = 0,
-    CA_USERSETTING = 1,
-    CA_DRINKING = 2,
-    CA_EMPTY = 3,
-    CA_ERROR = 4
+    CA_READY = 0,
+    CA_REGISTERING = 1,
+    CA_REGISTERED = 2,
+    CA_USERSETTING = 3,
+    CA_DRINKING = 4,
+    CA_GAMEMODE = 5,
+    CA_EMPTY = 6,
+    CA_ERROR = 7
 } CA_STATE;
 
 typedef enum {
@@ -56,4 +59,15 @@ typedef enum {
     CA_CUSTOM = 3,
 } CA_CUP;
 
+typedef enum {
+    CA_GAMENONE = 0,
+    CA_RANDOM = 1,
+    CA_LOVESHOT = 2,
+} CA_GAME;
+
+typedef enum {
+    CA_GAMENOTSTART= 0,
+    CA_GAMESTART = 1,
+    CA_GAMEFINISH = 2,
+} CA_GAMESTATE;
 #endif /* _CA_COMMON_H_ */

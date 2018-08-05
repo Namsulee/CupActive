@@ -1,3 +1,4 @@
+#include <Thread.h>
 #include <ESP8266WiFi.h>
 #include <WebSocketClient.h>
 #include <ArduinoJson.h> 
@@ -5,80 +6,196 @@
 #ifdef __AVR__
   #include <avr/power.h>
 #endif
-
 #include <LedControl.h>
 #include <Wire.h>
-#include "Adafruit_DRV2605.h"
 #include <HX711.h>
+
+#include "Adafruit_DRV2605.h"
 #include "binary.h"
 #include "musical_notes.h"
-#include "led_action.h"
+#include "led.h"
 #include "ca_common.h"
 
+Thread wifiThread = Thread();
+// Strip LED Instance
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
+// Dot Matrix Instance
 LedControl lc = LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
+// LoadCell Instance
 HX711 scale(LOADCEL_DOUT, LOADCEL_CLK);
-//DRV2605 haptic;  
+// Vibration motor Instance
 Adafruit_DRV2605 haptic;
+// WebSocketClient Instance
 WebSocketClient webSocketClient;
 // Use WiFiClient class to create TCP connections
 WiFiClient client;
 
+// Global variable
 float gCup_weight;
 int gCup;
 int gState;
 int gCount;
 int gFill;
 int gCapability;
+int gGameKind;
+int gDrink;
+int gGameState;
+int gEmptyCheckCnt;
+
+int getCupState() {
+  return gState;
+}
+
+void setCupState(int state) {
+  int prevState = getCupState();
+  if (prevState != state) {
+    gState = state;
+  }
+}
+
+// callback for myThread
+void wsReceiveCB(){
+  String data;
+  char cmd[20] = {0,};
+  
+  if (client.connected()) {
+    webSocketClient.getData(data);
+    if (data.length() > 0) {
+      // if the message is received and parse to set state correctly
+      Serial.print("Received data: ");
+      Serial.println(data);
+      // parsing
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject& json = jsonBuffer.parseObject(data);
+      json.printTo(Serial);
+
+      if (json.success()) {
+          strcpy(cmd, json["cmd"]);
+          Serial.println(cmd);
+          if (strcmp(cmd,"connected") == 0) {
+            Serial.println("Registered");
+            setCupState(CA_REGISTERED);
+          } else if (strcmp(cmd,"usersetting") == 0) {
+            Serial.println("Usersetting");
+             gCapability = json["capability"];
+             Serial.println(gCapability);
+             gCount = gCapability;
+             DrawDotMatrix(&lc, gCapability);
+             setCupState(CA_DRINKING);
+          } else if (strcmp(cmd,"gamesetting") == 0) {
+            Serial.println("gamsetting");
+            gGameKind = json["kind"];
+            gGameState = json["state"];
+            ClearDotMatrix(&lc);
+            if (gGameState == CA_GAMESTART) {  
+              if (gGameKind == CA_RANDOM) {
+                DrawQuestionDotMatrix(&lc);
+              } else if (gGameKind == CA_LOVESHOT) {
+                DrawHeartDotMatrix(&lc);
+              }
+              setCupState(CA_GAMEMODE);
+            } else if (gGameState == CA_GAMEFINISH) {
+              gDrink = json["drink"];
+              if (gGameKind == CA_RANDOM) {
+                if (gDrink == true) {
+                  DrawSadDotMatrix(&lc);
+                  vibratorOn(110, 20);
+                  seOh(BUZZER_PIN);
+                } else {
+                  DrawHappyDotMatrix(&lc);
+                }
+              } else if (gGameKind == CA_LOVESHOT) {
+                if (gDrink == true) {
+                  DrawHeartDotMatrix(&lc);
+                  vibratorOn(110, 20);
+                  seOh(BUZZER_PIN);
+                } else {
+                  ClearDotMatrix(&lc);
+                }
+              } 
+            }
+          } else if (strcmp(cmd, "restart") == 0) {
+            Serial.println("Restart");
+            ClearDotMatrix(&lc);
+            setCupState(CA_REGISTERED);
+          } else {
+            Serial.println("not supported command");
+          }
+      } else {
+        Serial.println("failed to load json config");
+      }
+    }
+  } else {
+     Serial.println("Client disconnected.");
+     while (1) {
+       // Hang on disconnect.
+     }
+  }
+}
 
 void setup() {
-  gState = CA_REGISTERING;
+  gState = CA_READY;
   gCup_weight = 0;
   gCount = 0;
   gCup = CA_BEER;
   gFill = false;
+  gGameState = CA_GAMENOTSTART;
   
   initDevice();
-  initAction();
   initWifi();
 
+  //Thread Start
+  wifiThread.onRun(wsReceiveCB);
+  wifiThread.setInterval(300);
+  initAction();
   Serial.println("Start CupActive");
 }
 
 void loop() {
-
-    switch(gState) {
+    if(wifiThread.shouldRun())
+      wifiThread.run();
+    
+    switch(getCupState()) {
+        case CA_READY:
+          registerCup(UNIQUE_ID);
         case CA_REGISTERING:
           // Register cup holder to the server
-          registerCup(UNIQUE_ID);
+          Serial.println("Waiting to register...");
           break;
+        case CA_REGISTERED:
         case CA_USERSETTING:
-          setUserCapability();
           break;
         case CA_DRINKING:
           if (gCount > 0 && true == checkEmpty(gCup)) {
-              gState = CA_EMPTY;
-              if (gFill == true) {
-                gFill = false;
-                gCount--;
-                draw(gCount);
+              gEmptyCheckCnt++;
+              if (gEmptyCheckCnt > 5) {
+                // real empty
+                gState = CA_EMPTY;
+                if (gFill == true) {
+                  gFill = false;
+                  gCount--;
+                  DrawDotMatrix(&lc, gCount);
+                }
+                emptyAction(gCup);
+                gEmptyCheckCnt = 0;
+              } else {
+                Serial.println("Waiting for the cup whether it is empty or not");
               }
-              emptyAction(gCup);
           } else {
+            gEmptyCheckCnt = 0;
             if (gCount == 0) {
               // Alert
-              strip.setBrightness(255);
-              ledOn(strip.Color(255, 0, 0));
+              SetStripLedBrightness(&strip, 255);
+              SetStripLedOn(&strip, ConvertStripLedColor(255, 0, 0));
+              // buzzer
+              seSiren(BUZZER_PIN); 
             } else {
               float val = getWeight();
-              Serial.print(val);
-              Serial.println();
-          
+              Serial.println(val);       
               int inside = val;
               int cal = 0;
               uint8_t portion = 0;
               if (inside > 0) {
-                //Serial.println(inside*2.55);
                 cal = inside * 2.55f;
                 if (cal > 255) {
                   portion = 255;
@@ -88,13 +205,15 @@ void loop() {
                 if (portion > 170) {
                   gFill = true;
                 }
-                strip.setBrightness(portion);
-                ledOn(strip.Color(0, 255, 0)); // Green
+                SetStripLedBrightness(&strip, portion);
+                SetStripLedOn(&strip, ConvertStripLedColor(0,255,0));
               } else {
-                ledOff();
+                SetStripLedOff(&strip);
               }
             }
           }
+          break;
+        case CA_GAMEMODE:
           break;
         case CA_EMPTY:
           if (false == checkEmpty(gCup)) {
@@ -107,27 +226,14 @@ void loop() {
           break;
     }
     
-    delay(1);
+    delay(100);
 }
 
-int getCupState() {
-  return gState;
-}
-
-void setCupState(int state) {
-  int prevState = getCupState();
-  if (prevState != state) {
-    gState = state;
-  }
-}
 void initDevice(void) {
 
   // Open Serial port to see the logs
   Serial.begin(SERIAL_SPEED);
-  
   // initialize haptic
-  //if (haptic.init(false, true) != 0) Serial.println("init failed!");
-  //if (haptic.drv2605_AutoCal() != 0) Serial.println("auto calibration failed!");
   haptic.begin();
   haptic.selectLibrary(1);
   haptic.setMode(DRV2605_MODE_INTTRIG);
@@ -157,8 +263,8 @@ void initAction(void) {
     // Vibration
     vibratorOn(110, 20);
     // LED
-    ledOn(strip.Color(255, 255, 255)); // white color
-    delay(2000);
+    SetStripLedOn(&strip, ConvertStripLedColor(255,255,255));
+    delay(1000);
 }
 
 void initWifi(void) {
@@ -203,18 +309,19 @@ void initWifi(void) {
 
 void registerCup(String id) {
   DynamicJsonBuffer jsonBuffer;
-  char jsonChar[100];
+  char jsonChar[100] = {0,};
   
-  if (getCupState() == CA_REGISTERING) {
+  if (getCupState() == CA_READY) {
+    setCupState(CA_REGISTERING);
     JsonObject& json = jsonBuffer.createObject();
   
     json["cmd"] = "register";
     json["id"] = id;
+    json["ipaddress"] = WiFi.localIP().toString();
     json.printTo(Serial);
     if (client.connected()) {
       json.printTo(jsonChar);
        webSocketClient.sendData(jsonChar);
-       setCupState(CA_USERSETTING);
     } else {
       Serial.println("Client disconnected.");
       while (1) {
@@ -224,132 +331,27 @@ void registerCup(String id) {
   }
 }
 
-void setUserCapability() {
-  String data;
-  char cmd[20];
-  
-  if (client.connected()) {
-    webSocketClient.getData(data);
-    if (data.length() > 0) {
-      Serial.print("Received data: ");
-      Serial.println(data); 
-      // parsing
-      DynamicJsonBuffer jsonBuffer;
-      JsonObject& json = jsonBuffer.parseObject(data);
-      json.printTo(Serial);
-
-      if (json.success()) {
-          Serial.println("\nparsed json");
-          strcpy(cmd, json["cmd"]);
-          Serial.println(cmd);
-          if (strcmp(cmd,"usersetting")==0) {
-            gCapability = json["capability"];
-            Serial.println(gCapability);
-            Serial.println(gCount);
-            gCount = gCapability;
-            draw(gCapability);
-            setCupState(CA_DRINKING);
-          } else {
-            Serial.println("not supported command");
-          }
-      } else {
-        Serial.println("failed to load json config");
-      }
-    } else {
-      //Serial.print("data is 0");
-      //Serial.println();
-    }
-  } else {
-    Serial.println("Client disconnected.");
-    while (1) {
-      // Hang on disconnect.
-    }
-  }
-}
-
-void receiveDataWS() {
-  String data;
-    
-  if (client.connected()) {
-    webSocketClient.getData(data);
-    if (data.length() > 0) {
-      Serial.print("Received data: ");
-      Serial.println(data);
-    }
-  } else {
-    Serial.println("Client disconnected.");
-    while (1) {
-      // Hang on disconnect.
-    }
-  }
-}
-
-void sendDataWS() {
-  String data;
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
-   
-  if (client.connected()) {
-    data = "hello world";
-    webSocketClient.sendData(data);
- 
-  } else {
-    Serial.println("Client disconnected.");
-    while (1) {
-      // Hang on disconnect.
-    }
-  }
-}
-
-void cupFoundAction(int cup) {
-    // Buzzer
-    seCoo(BUZZER_PIN);
-    // Vibration
-    vibratorOn(15, 20);
-    // LED
-    switch (cup) {
-        case CA_SOJU:
-          colorWipe(strip.Color(0, 0, 255), 100); // Blue
-          Serial.println("Soju");
-          break;
-        case CA_BEER:
-          ledOn(strip.Color(0, 255, 0));
-          //colorWipe(strip.Color(0, 255, 0), 100); // Green
-          Serial.println("Beer");
-          break;
-        case CA_CUSTOM:
-          colorWipe(strip.Color(255, 255, 0), 100); // Yellow
-          Serial.println("Custom");
-          break;
-        default:
-          break;
-    }
-    
-    ledOff();
-}
-
 void emptyAction(int cup) {
     // Buzzer
     //seSiren(BUZZER_PIN);
     // Vibration
     //vibratorOn(100, 20);
-
     // LED
     switch (cup) {
         case CA_SOJU:
-          theaterChase(strip.Color(0, 0, 255), 50); // Blue
+          SetStripLedEffectBlink(&strip, ConvertStripLedColor(0,0,255), 50);
           break;
         case CA_BEER:
-          theaterChase(strip.Color(255, 255, 0), 50); // yellow
+          SetStripLedEffectBlink(&strip, ConvertStripLedColor(255,255,0), 50);
           break;
         case CA_CUSTOM:
-          theaterChase(strip.Color(255, 255, 0), 50); // Yellow
+          SetStripLedEffectBlink(&strip, ConvertStripLedColor(0,255,0), 50);
           break;
         default:
           break;
     }
 
-    //ledOff();
+    SetStripLedOff(&strip);
 }
 
 float getWeight(void) {
@@ -399,8 +401,6 @@ bool checkEmpty(int cup) {
     // set the max weight according to cup
     bool bRet = false;
     float val = getWeight();
-    /* soju : (60g ~ 150g) */
-    /* beer : (100g ~ 300g) */
     switch (gCup) {
         case CA_BEER:
             if (val >= 0 && val <= 5) {
@@ -419,177 +419,12 @@ bool checkEmpty(int cup) {
     return bRet;
 }
 
-void ledOn(uint32_t c)
-{
-  for(uint16_t i=0; i < strip.numPixels(); i++) {
-      strip.setPixelColor(i, c);
-  }
-  strip.show();
-}
-
-void ledOff() 
-{
-    strip.clear();
-    strip.show();  
-}
-
-void draw(int num) {
-  if (num == 1) {
-    lc.setRow(0,0,one[0]);
-    lc.setRow(0,1,one[1]);
-    lc.setRow(0,2,one[2]);
-    lc.setRow(0,3,one[3]);
-    lc.setRow(0,4,one[4]);
-    lc.setRow(0,5,one[5]);
-    lc.setRow(0,6,one[6]);
-    lc.setRow(0,7,one[7]);
-  } else if (num == 2) {
-    lc.setRow(0,0,two[0]);
-    lc.setRow(0,1,two[1]);
-    lc.setRow(0,2,two[2]);
-    lc.setRow(0,3,two[3]);
-    lc.setRow(0,4,two[4]);
-    lc.setRow(0,5,two[5]);
-    lc.setRow(0,6,two[6]);
-    lc.setRow(0,7,two[7]);
-  } else if (num == 3) {
-    lc.setRow(0,0,three[0]);
-    lc.setRow(0,1,three[1]);
-    lc.setRow(0,2,three[2]);
-    lc.setRow(0,3,three[3]);
-    lc.setRow(0,4,three[4]);
-    lc.setRow(0,5,three[5]);
-    lc.setRow(0,6,three[6]);
-    lc.setRow(0,7,three[7]);
-  } else if (num == 4) {
-    lc.setRow(0,0,four[0]);
-    lc.setRow(0,1,four[1]);
-    lc.setRow(0,2,four[2]);
-    lc.setRow(0,3,four[3]);
-    lc.setRow(0,4,four[4]);
-    lc.setRow(0,5,four[5]);
-    lc.setRow(0,6,four[6]);
-    lc.setRow(0,7,four[7]);
-  } else if (num == 5) {
-    lc.setRow(0,0,five[0]);
-    lc.setRow(0,1,five[1]);
-    lc.setRow(0,2,five[2]);
-    lc.setRow(0,3,five[3]);
-    lc.setRow(0,4,five[4]);
-    lc.setRow(0,5,five[5]);
-    lc.setRow(0,6,five[6]);
-    lc.setRow(0,7,five[7]);
-  } else if (num == 6) {
-    lc.setRow(0,0,six[0]);
-    lc.setRow(0,1,six[1]);
-    lc.setRow(0,2,six[2]);
-    lc.setRow(0,3,six[3]);
-    lc.setRow(0,4,six[4]);
-    lc.setRow(0,5,six[5]);
-    lc.setRow(0,6,six[6]);
-    lc.setRow(0,7,six[7]);
-  } else if (num == 7) {
-    lc.setRow(0,0,seven[0]);
-    lc.setRow(0,1,seven[1]);
-    lc.setRow(0,2,seven[2]);
-    lc.setRow(0,3,seven[3]);
-    lc.setRow(0,4,seven[4]);
-    lc.setRow(0,5,seven[5]);
-    lc.setRow(0,6,seven[6]);
-    lc.setRow(0,7,seven[7]);
-  } else if (num == 8) {
-    lc.setRow(0,0,eight[0]);
-    lc.setRow(0,1,eight[1]);
-    lc.setRow(0,2,eight[2]);
-    lc.setRow(0,3,eight[3]);
-    lc.setRow(0,4,eight[4]);
-    lc.setRow(0,5,eight[5]);
-    lc.setRow(0,6,eight[6]);
-    lc.setRow(0,7,eight[7]);
-  } else if (num == 9) {
-    lc.setRow(0,0,nine[0]);
-    lc.setRow(0,1,nine[1]);
-    lc.setRow(0,2,nine[2]);
-    lc.setRow(0,3,nine[3]);
-    lc.setRow(0,4,nine[4]);
-    lc.setRow(0,5,nine[5]);
-    lc.setRow(0,6,nine[6]);
-    lc.setRow(0,7,nine[7]);
-  } else {
-    lc.setRow(0,0,zero[0]);
-    lc.setRow(0,1,zero[1]);
-    lc.setRow(0,2,zero[2]);
-    lc.setRow(0,3,zero[3]);
-    lc.setRow(0,4,zero[4]);
-    lc.setRow(0,5,zero[5]);
-    lc.setRow(0,6,zero[6]);
-    lc.setRow(0,7,zero[7]);
-  }
-}
-
 void vibratorOn(int num, int iteration) 
 {
-   // for (int i = 0; i < iteration; i++) {
-       // haptic.drv2605_Play_Waveform(num);  
-       
-       haptic.setWaveform(0, num);
-       haptic.setWaveform(1, 0);
-       haptic.go();
-       delay(1000);
-    //}
-}
-
-
-// LED custom functions
-//입력한 색으로 LED를 깜빡거리며 표현한다
-void theaterChase(uint32_t c, uint8_t wait) {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
-    for (int q=0; q < 3; q++) {
-      for (int i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, c);    //turn every third pixel on
-      }
-      strip.show();
-     
-      delay(wait);
-     
-      for (int i=0; i < strip.numPixels(); i=i+3) {
-        strip.setPixelColor(i+q, 0);        //turn every third pixel off
-      }
-    }
-  }
-}
-
-void colorWipe(uint32_t c, uint8_t wait) {
-  for(uint16_t i=0; i<strip.numPixels(); i++) {
-      strip.setPixelColor(i, c);
-      strip.show();
-      delay(wait);
-  }
-}
-
-void rainbowCycle(uint8_t wait) {
-  uint16_t i, j;
-
-  for(j=0; j<256*5; j++) { 
-    for(i=0; i< strip.numPixels(); i++) {
-      strip.setPixelColor(i, Wheel(((i * 256 / strip.numPixels()) + j) & 255));
-    }
-    strip.show();
-    delay(wait);
-  }
-}
-
-//255가지의 색을 나타내는 함수
-uint32_t Wheel(byte WheelPos) {
-  if(WheelPos < 85) {
-   return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-  } else if(WheelPos < 170) {
-   WheelPos -= 85;
-   return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  } else {
-   WheelPos -= 170;
-   return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
+   haptic.setWaveform(0, num);
+   haptic.setWaveform(1, 0);
+   haptic.go();
+   delay(1000);
 }
 
 void beep(int speakerPin, float noteFrequency, long noteDuration) {
