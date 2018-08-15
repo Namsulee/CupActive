@@ -1,13 +1,27 @@
 #include <Adafruit_NeoPixel.h>
 #include <LedControl.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
 #include "led.h"
 #include "led_action.h"
 
-void SetStripLedOn(Adafruit_NeoPixel *strip, uint32_t c)
+ColorTbl colorTbl[CA_LED_COLOR_MAX] = {
+  {CA_LED_COLOR_NONE, 0, 0, 0},
+  {CA_LED_COLOR_SKY, 0, 255, 255},
+  {CA_LED_COLOR_BLUE, 0, 0, 255},
+  {CA_LED_COLOR_YELLOW, 255, 255, 0},
+  {CA_LED_COLOR_GREEN, 0, 255, 0},
+  {CA_LED_COLOR_RED, 255, 0, 0},
+  {CA_LED_COLOR_WHITE, 255, 255, 255}
+};
+
+uint32_t convertStripLedColor(uint8_t r, uint8_t g, uint8_t b)
 {
+  return ((uint32_t)r << 16) | ((uint32_t)g <<  8) | b;
+}
+
+void SetStripLedOn(Adafruit_NeoPixel *strip, LED_COLOR color)
+{
+  uint32_t c = convertStripLedColor(colorTbl[color].red, colorTbl[color].green, colorTbl[color].blue);
+  
   for(uint16_t i=0; i < strip->numPixels(); i++) {
       strip->setPixelColor(i, c);
   }
@@ -25,16 +39,14 @@ void SetStripLedBrightness(Adafruit_NeoPixel *strip, uint8_t brightness)
     strip->setBrightness(brightness);
 }
 
-uint32_t ConvertStripLedColor(uint8_t r, uint8_t g, uint8_t b)
-{
-  return ((uint32_t)r << 16) | ((uint32_t)g <<  8) | b;
-}
 
-void SetStripLedEffectBlink(Adafruit_NeoPixel *strip, uint32_t c, uint8_t wait)
+void SetStripLedEffectBlink(Adafruit_NeoPixel *strip, LED_COLOR color, int cycle, uint8_t wait)
 {
-  for (int j=0; j<10; j++) {  //do 10 cycles of chasing
-    for (int q=0; q < 3; q++) {
-      for (int i=0; i < strip->numPixels(); i=i+3) {
+  uint32_t c = convertStripLedColor(colorTbl[color].red, colorTbl[color].green, colorTbl[color].blue);
+  
+  for (int j = 0; j < cycle; j++) {  //do 5 cycles of chasing
+    for (int q = 0; q < 3; q++) {
+      for (int i = 0; i < strip->numPixels(); i=i+3) {
         strip->setPixelColor(i+q, c);    //turn every third pixel on
       }
       strip->show();
@@ -189,6 +201,55 @@ void DrawHappyDotMatrix(LedControl *lc)
   lc->setRow(0,5,happy[5]);
   lc->setRow(0,6,happy[6]);
   lc->setRow(0,7,happy[7]);
+}
+
+void DrawNoneDotMatrix(LedControl *lc) 
+{
+  lc->setRow(0,0,none[0]);
+  lc->setRow(0,1,none[1]);
+  lc->setRow(0,2,none[2]);
+  lc->setRow(0,3,none[3]);
+  lc->setRow(0,4,none[4]);
+  lc->setRow(0,5,none[5]);
+  lc->setRow(0,6,none[6]);
+  lc->setRow(0,7,none[7]);
+}
+
+void DrawflagDotMatrix(LedControl *lc)
+{
+  lc->setRow(0,0,flag[0]);
+  lc->setRow(0,1,flag[1]);
+  lc->setRow(0,2,flag[2]);
+  lc->setRow(0,3,flag[3]);
+  lc->setRow(0,4,flag[4]);
+  lc->setRow(0,5,flag[5]);
+  lc->setRow(0,6,flag[6]);
+  lc->setRow(0,7,flag[7]);
+}
+
+void DrawRandomNDotMatrix(LedControl *lc)
+{
+  lc->setRow(0,0,randomN[0]);
+  lc->setRow(0,1,randomN[1]);
+  lc->setRow(0,2,randomN[2]);
+  lc->setRow(0,3,randomN[3]);
+  lc->setRow(0,4,randomN[4]);
+  lc->setRow(0,5,randomN[5]);
+  lc->setRow(0,6,randomN[6]);
+  lc->setRow(0,7,randomN[7]);
+}
+
+
+void DrawFullDotMatrix(LedControl *lc)
+{
+  lc->setRow(0,0,full[0]);
+  lc->setRow(0,1,full[1]);
+  lc->setRow(0,2,full[2]);
+  lc->setRow(0,3,full[3]);
+  lc->setRow(0,4,full[4]);
+  lc->setRow(0,5,full[5]);
+  lc->setRow(0,6,full[6]);
+  lc->setRow(0,7,full[7]);
 }
 void ClearDotMatrix(LedControl *lc)
 {
