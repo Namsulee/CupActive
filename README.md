@@ -1,7 +1,8 @@
 # CupActive
 ## Purpose
-CupActive is an open source project created by sooldongmu team to enable 'Joyful Soolsang' project.
-The purpose of the project is to show in 'Maker Faire Seoul 2018'.
+CupActive is an open source project created by sooldongmu team to enable 'Joyful Soolsang' project.</br>
+The purpose of the project is to give fun and manage your drinking habit. </br>
+Also, It will show in 'Maker Faire 2018 Seoul' </br>
 CupActive repository would be in charge of each device software and CupActive-Server would be server software.
 CupActive will handle hardware resources which are included in personal device.
 
