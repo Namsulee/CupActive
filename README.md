@@ -4,7 +4,7 @@ CupActive is an open source project created by sooldongmu team to enable 'Joyful
 The purpose of the project is to give fun and manage your drinking habit. </br>
 Also, It will show in 'Maker Faire 2018 Seoul' </br>
 CupActive repository would be in charge of each device software and CupActive-Server would be server software.</br>
-CupActive will handle hardware resources which are included in personal device.
+CupActive will be handled with the hardware resources which are included in a personal cup device.
 
 ## Hardware
 Here is a list which hardwares are included in CupActive.
@@ -46,7 +46,7 @@ The library has to be mnaually installe. Once take the source from the git as zi
 https://github.com/morrissinger/ESP8266-Websocket </br>
 After downloading the zip file and open library manager to include it into your Arduino IDE.
 #### The others
-ArduinoJson, WebSocket, NeoPixel, Led Controller, thread and DRV2605 are much simple.</br>
+ArduinoJson, NeoPixel, Led Controller, thread and DRV2605 are much simple.</br>
 Open library manager and find it to install.
 * ArduinoThread by Ivan Seidel
 * Adafruit DRV2605 Library by Adafruit
