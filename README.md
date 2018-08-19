@@ -27,6 +27,7 @@ Here is a list which external libraries are installed in CupActive.
 * HX711
 * ArduinoJson
 * DRV2605
+* WiFiManager
 
 ### How To Install libraries
 #### NodeMCU V3 Board Library
@@ -53,6 +54,7 @@ Open library manager and find it to install.
 * Adafruit NeoPixel by Adafruit
 * LedControl by Eberhard Fahle
 * ArduinoJson by Benoit Blanchon(5.13.2 version)
+* WiFiManager by tzapu
 ### Build 
 Clone git hub or take zip file from CupActive github and open the sources by Arduino IDE. </br>
 Select the board as 'Node MCU 1.0(ESP-12E module)' and build it whether it is built or not.</br>
