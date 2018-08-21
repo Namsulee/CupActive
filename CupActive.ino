@@ -303,7 +303,6 @@ void setCupState(int state)
 }
 
 // callback for websocket receivee
-<<<<<<< HEAD
 void wsReceiveCB()
 {
   String data;
@@ -438,10 +437,6 @@ float getWeight(void)
 {
   float units = 0;
   units = scale->get_units(), 1;
-  /*if (units < 0) {
-    units = 0.00;
-  }*/
- 
   Serial.print(units);
   Serial.println();
   return units;
