@@ -65,9 +65,14 @@ void setup() {
   wifiThread.onRun(wsReceiveCB);
   wifiThread.setInterval(300);
       
-  Serial.println("Start wifi Setup");
-  WiFiManager wifiManager;
-  wifiManager.autoConnect();
+  Serial.println("Start wifi Setup as STA mode");
+  //WiFiManager wifiManager;
+  //wifiManager.autoConnect();
+  WiFi.begin(ssid, password); 
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
   Serial.println("establshed wifi setting");
   
   Serial.println("IP address: ");
@@ -78,6 +83,7 @@ void setup() {
     Serial.println(".");
     delay(2000);
   }
+  
   callibrateScale();
   setCupState(CA_READY);
   Serial.println("Start CupActive");
@@ -163,18 +169,45 @@ void loop() {
           }
           break;
         case CA_GAMEMODE:
-          if (gGameState == CA_GAMENOTSTART) {
-            SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
-            SetStripLedOn(strip, CA_LED_COLOR_WHITE);
-          } else if (gGameState == CA_GAMESTART) {
-            if (gRandom == true) {
-              gRandom = false;
-              DrawFullDotMatrix(lc);
-            } else {
-              gRandom = true;
-              ClearDotMatrix(lc);
+          // If gCount is over 0, you can join the game
+          if (gCount > 0) {
+            if (gGameState == CA_GAMENOTSTART) {
+              SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
+              SetStripLedOn(strip, CA_LED_COLOR_WHITE);
+            } else if (gGameState == CA_GAMESTART) {
+              if (gRandom == true) {
+                gRandom = false;
+                DrawFullDotMatrix(lc);
+              } else {
+                gRandom = true;
+                ClearDotMatrix(lc);
+              }
+              SetStripLedEffectBlink(strip, CA_LED_COLOR_WHITE, 3, 50);
+            } else if (gGameState == CA_GAMEFINISH) {
+              // check cup and show the your reamin count
+              float val = getWeight();
+              if (val > 0) {
+                // nothing..//cup is up
+              } else {
+                SetStripLedOff(strip);
+                DrawDotMatrix(lc, gCount);
+              }
             }
-            SetStripLedEffectBlink(strip, CA_LED_COLOR_WHITE, 3, 50);
+            gNoti = false;
+          } else {
+            // your gCount is 0, you can not join the game
+             if (gNoti == false) {
+                SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
+                SetStripLedOn(strip, CA_LED_COLOR_RED);
+                seOh();
+                delay(100);
+                DrawSadDotMatrix(lc);
+                seOh();
+                delay(100);
+                seOh();
+                delay(100);
+                gNoti = true;
+             }
           }
           break;
         case CA_EMPTY:
@@ -191,7 +224,8 @@ void loop() {
   delay(100);
 }
 
-void initDevice(void) {
+void initDevice(void) 
+{
   // Allocation memory to use each instances
   strip = new Adafruit_NeoPixel(STRIP_LED_COUNT, STRIP_LED_PIN, NEO_GRB + NEO_KHZ800);
   lc = new LedControl(DOTMATRIX_DIN, DOTMATRIX_CLK, DOTMATRIX_CS, TRUE);
@@ -247,7 +281,8 @@ bool checkWebServer(void)
   return true;
 }
 
-void initAction(void) {
+void initAction(void) 
+{
   // Vibration
   vibratorOn(16, 1);
   // LED
@@ -260,7 +295,8 @@ int getCupState() {
   return gState;
 }
 
-void setCupState(int state) {
+void setCupState(int state) 
+{
   int prevState = getCupState();
   if (prevState != state) {
     gState = state;
@@ -268,7 +304,8 @@ void setCupState(int state) {
 }
 
 // callback for websocket receivee
-void wsReceiveCB(){
+void wsReceiveCB()
+{
   String data;
   char cmd[20] = {0,};
 
@@ -308,11 +345,16 @@ void wsReceiveCB(){
               gGameKind = json["kind"];
               gGameState = json["state"];
               if (gGameState == CA_GAMENOTSTART){
+                Serial.println("Game Ready");
                 DrawflagDotMatrix(lc);
                 SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
                 SetStripLedOn(strip, CA_LED_COLOR_WHITE);
                 setCupState(CA_GAMEMODE);
+              } else if (gGameState == CA_GAMESTART) {
+                 // nothing
+                 Serial.println("Game State");
               } else if (gGameState == CA_GAMEFINISH) {
+                Serial.println("Game Finish");
                 gDrink = json["drink"];
                 if (gGameKind == CA_RANDOM) {
                   if (gDrink == 1) {
@@ -320,7 +362,7 @@ void wsReceiveCB(){
                     vibratorOn(16, 5);
                     SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
-                    seSiren();
+                    seOh();
                   } else {
                     DrawHappyDotMatrix(lc);
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
@@ -355,7 +397,8 @@ void wsReceiveCB(){
   }
 }
 
-void registerCup(String id) {
+void registerCup(String id) 
+{
   DynamicJsonBuffer jsonBuffer;
   char jsonChar[100] = {0,};
   
@@ -379,7 +422,8 @@ void registerCup(String id) {
   }
 }
 
-void emptyAction(int cup) {
+void emptyAction(int cup) 
+{
   // Vibration
   vibratorOn(16, 5);
   seCoo();
@@ -394,19 +438,18 @@ void emptyAction(int cup) {
   }
 }
 
-float getWeight(void) {
+float getWeight(void) 
+{
   float units = 0;
   units = scale->get_units(), 1;
-  /*if (units < 0) {
-    units = 0.00;
-  }*/
- 
+
   Serial.print(units);
   Serial.println();
   return units;
 }
 
-bool checkEmpty(int cup) {
+bool checkEmpty(int cup) 
+{
   // set the max weight according to cup
   bool bRet = false;
   float val = getWeight();
@@ -479,7 +522,8 @@ void seOh(void)
   }
 }
 
-void seCoo(void) {
+void seCoo(void) 
+{
   int i;
 
   for (i = 0; i < 150; i = i + 10) {

@@ -34,8 +34,8 @@
 float CALIBRATION_FACTOR = -2920.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 
 // Wifi information
-const char* ssid     = "RoomC02";
-const char* password = "pwningsdrm";
+const char* ssid     = "ynshero-main";
+const char* password = "qa1ws2ed3";
 char path[] = "/ws";
 char host[] = "192.168.0.8";
 
