@@ -83,7 +83,6 @@ void setup() {
     Serial.println(".");
     delay(2000);
   }
-  
   callibrateScale();
   setCupState(CA_READY);
   Serial.println("Start CupActive");
@@ -304,6 +303,7 @@ void setCupState(int state)
 }
 
 // callback for websocket receivee
+<<<<<<< HEAD
 void wsReceiveCB()
 {
   String data;
@@ -346,10 +346,6 @@ void wsReceiveCB()
               gGameState = json["state"];
               if (gGameState == CA_GAMENOTSTART){
                 Serial.println("Game Ready");
-                DrawflagDotMatrix(lc);
-                SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
-                SetStripLedOn(strip, CA_LED_COLOR_WHITE);
-                setCupState(CA_GAMEMODE);
               } else if (gGameState == CA_GAMESTART) {
                  // nothing
                  Serial.println("Game State");
@@ -442,7 +438,10 @@ float getWeight(void)
 {
   float units = 0;
   units = scale->get_units(), 1;
-
+  /*if (units < 0) {
+    units = 0.00;
+  }*/
+ 
   Serial.print(units);
   Serial.println();
   return units;
