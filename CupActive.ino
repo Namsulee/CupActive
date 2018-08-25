@@ -185,11 +185,13 @@ void loop() {
             } else if (gGameState == CA_GAMEFINISH) {
               // check cup and show the your reamin count
               float val = getWeight();
-              if (val > 0) {
-                // nothing..//cup is up
+              if (val > -5) {
+                // nothing..cup is still on the soolsang
               } else {
                 SetStripLedOff(strip);
                 DrawDotMatrix(lc, gCount);
+                gCount -= 1;
+                gGameState = CA_GAMENOTSTART;
               }
             }
             gNoti = false;
@@ -341,10 +343,12 @@ void wsReceiveCB()
                setCupState(CA_DRINKING);
             } else if (strcmp(cmd,"gamesetting") == 0) {
               Serial.println("gamsetting");
+              setCupState(CA_GAMEMODE);
               gGameKind = json["kind"];
               gGameState = json["state"];
               if (gGameState == CA_GAMENOTSTART){
                 Serial.println("Game Ready");
+                DrawflagDotMatrix(lc);
               } else if (gGameState == CA_GAMESTART) {
                  // nothing
                  Serial.println("Game State");
