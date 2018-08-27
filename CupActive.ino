@@ -69,22 +69,37 @@ void setup() {
   //WiFiManager wifiManager;
   //wifiManager.autoConnect();
   WiFi.begin(ssid, password); 
+  int cntConnect = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(1000);
+    cntConnect++;
+    if (cntConnect == MAX_WAITING_STANDALONEMODE) {
+      break;
+    }
     Serial.print(".");
   }
-  Serial.println("establshed wifi setting");
-  
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-  
-  // Check Webserver, If it is not able to connect, it will not start the loop()
-  while(true != checkWebServer()) {
-    Serial.println(".");
-    delay(2000);
+
+  if (cntConnect < MAX_WAITING_STANDALONEMODE) {
+    Serial.println("establshed wifi setting");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+    
+    // Check Webserver, If it is not able to connect, it will not start the loop()
+    while(true != checkWebServer()) {
+      Serial.println(".");
+      delay(2000);
+    }
+    setCupState(CA_READY);
+  } else {
+    Serial.println("Standalone mode");
+    gCapability = DEFAULT_CAPABILITY;
+    gCount = DEFAULT_CAPABILITY;
+    DrawDotMatrix(lc, gCapability);
+    initAction();
+    setCupState(CA_DRINKING);
   }
+  
   callibrateScale();
-  setCupState(CA_READY);
   Serial.println("Start CupActive");
 }
 

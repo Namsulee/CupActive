@@ -33,6 +33,8 @@
 
 float CALIBRATION_FACTOR = -2920.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 
+#define DEFAULT_CAPABILITY 5
+#define MAX_WAITING_STANDALONEMODE 10
 // Wifi information
 const char* ssid     = "soolsang";
 const char* password = "soolsang123";
