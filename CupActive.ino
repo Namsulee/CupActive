@@ -85,18 +85,25 @@ void setup() {
     Serial.println(WiFi.localIP());
     
     // Check Webserver, If it is not able to connect, it will not start the loop()
-    while(true != checkWebServer()) {
+    while(true != checkWebServercheckWebServer()) {
+      cntConnect++;
       Serial.println(".");
-      delay(2000);
+      delay(1000);
+      if (cntConnect == MAX_WAITING_STANDALONEMODE) {
+        break;
+      }
     }
-    setCupState(CA_READY);
-  } else {
+  }
+  
+  if (cntConnect == MAX_WAITING_STANDALONEMODE) {
     Serial.println("Standalone mode");
     gCapability = DEFAULT_CAPABILITY;
     gCount = DEFAULT_CAPABILITY;
     DrawDotMatrix(lc, gCapability);
     initAction();
     setCupState(CA_DRINKING);
+  } else {
+    setCupState(CA_READY);
   }
   
   callibrateScale();
