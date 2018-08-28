@@ -71,12 +71,13 @@ void setup() {
   WiFi.begin(ssid, password); 
   int cntConnect = 0;
   while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
     cntConnect++;
+    delay(1000);
+    Serial.print(".");
+    SetStripLedEffectBlink(strip, CA_LED_COLOR_SKY, 1, 50);
     if (cntConnect == MAX_WAITING_STANDALONEMODE) {
       break;
     }
-    Serial.print(".");
   }
 
   if (cntConnect < MAX_WAITING_STANDALONEMODE) {
@@ -85,17 +86,17 @@ void setup() {
     Serial.println(WiFi.localIP());
     
     // Check Webserver, If it is not able to connect, it will not start the loop()
-    while(true != checkWebServercheckWebServer()) {
+    while(true != checkWebServer()) {
       cntConnect++;
       Serial.println(".");
-      delay(1000);
+      SetStripLedEffectBlink(strip, CA_LED_COLOR_SKY, 1, 50);
       if (cntConnect == MAX_WAITING_STANDALONEMODE) {
         break;
       }
     }
   }
   
-  if (cntConnect == MAX_WAITING_STANDALONEMODE) {
+  if (cntConnect >= MAX_WAITING_STANDALONEMODE) {
     Serial.println("Standalone mode");
     gCapability = DEFAULT_CAPABILITY;
     gCount = DEFAULT_CAPABILITY;
@@ -412,8 +413,6 @@ void wsReceiveCB()
           Serial.println("failed to load json config");
         }
       }
-    } else {
-       Serial.println("Client disconnected.");
     }
   }
 }
@@ -436,9 +435,6 @@ void registerCup(String id)
        webSocketClient->sendData(jsonChar);
     } else {
       Serial.println("Client disconnected.");
-      while (1) {
-        // Hang on disconnect.
-      }
     }
   }
 }
