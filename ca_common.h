@@ -39,7 +39,7 @@ float CALIBRATION_FACTOR = -2920.0; //This value is obtained using the SparkFun_
 const char* ssid     = "soolsang";
 const char* password = "soolsang123";
 char path[] = "/ws";
-char host[] = "192.168.1.3";
+char host[] = "192.168.1.2";
 
 // define variable
 #define CONVERT_PIXEL 2.55

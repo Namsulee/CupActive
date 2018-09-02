@@ -88,6 +88,7 @@ void setup() {
     // Check Webserver, If it is not able to connect, it will not start the loop()
     while(true != checkWebServer()) {
       cntConnect++;
+      delay(1000);
       Serial.println(".");
       SetStripLedEffectBlink(strip, CA_LED_COLOR_SKY, 1, 50);
       if (cntConnect == MAX_WAITING_STANDALONEMODE) {
@@ -400,6 +401,7 @@ void wsReceiveCB()
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
                   }
                 }
+                gDrink = 0;
               }
             } else if (strcmp(cmd, "restart") == 0) {
               Serial.println("Restart");
