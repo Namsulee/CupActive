@@ -36,10 +36,10 @@ float CALIBRATION_FACTOR = -2920.0; //This value is obtained using the SparkFun_
 #define DEFAULT_CAPABILITY 5
 #define MAX_WAITING_STANDALONEMODE 10
 // Wifi information
-const char* ssid     = "soolsang";
-const char* password = "soolsang123";
+const char* ssid     = "RoomC02";
+const char* password = "pwningsdrm";
 char path[] = "/ws";
-char host[] = "192.168.1.2";
+char host[] = "192.168.0.12";
 
 // define variable
 #define CONVERT_PIXEL 2.55
