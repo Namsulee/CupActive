@@ -1,10 +1,9 @@
 #ifndef _CA_COMMON_H_
 #define _CA_COMMON_H_
 
-#define UNIQUE_ID "namsu"
+#define UNIQUE_ID "nam"
 // define serial speed
 #define SERIAL_SPEED 115200
-
 // define LED
 #define STRIP_LED_PIN 12
 #define STRIP_LED_COUNT 22
@@ -31,15 +30,16 @@
 #define BEER_WEIGHT_MIN 260
 #define BEER_WEIGHT_MAX 270
 
-float CALIBRATION_FACTOR = -2920.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+float CALIBRATION_FACTOR = -2860.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 
 #define DEFAULT_CAPABILITY 5
 #define MAX_WAITING_STANDALONEMODE 10
+#define CRITERIA_DEFAULT_CNT 3
 // Wifi information
-const char* ssid     = "RoomC02";
-const char* password = "pwningsdrm";
+const char* ssid     = "ynshero-main";
+const char* password = "qa1ws2ed3";
 char path[] = "/ws";
-char host[] = "192.168.0.12";
+char host[] = "192.168.0.8";
 
 // define variable
 #define CONVERT_PIXEL 2.55

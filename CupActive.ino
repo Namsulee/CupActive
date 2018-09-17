@@ -138,7 +138,7 @@ void loop() {
         case CA_DRINKING:
           if (gCount > 0 && true == checkEmpty(gCup)) {
               gEmptyCheckCnt++;
-              if (gEmptyCheckCnt > 4) {
+              if (gEmptyCheckCnt > CRITERIA_DEFAULT_CNT) {
                 // real empty
                 gState = CA_EMPTY;
                 if (gFill == true) {
@@ -200,6 +200,7 @@ void loop() {
             } else if (gGameState == CA_GAMESTART) {
               if (gRandom == true) {
                 gRandom = false;
+                seOh();
                 DrawFullDotMatrix(lc);
               } else {
                 gRandom = true;
@@ -208,14 +209,21 @@ void loop() {
               SetStripLedEffectBlink(strip, CA_LED_COLOR_WHITE, 3, 50);
             } else if (gGameState == CA_GAMEFINISH) {
               // check cup and show the your reamin count
-              float val = getWeight();
-              if (val > -5) {
-                // nothing..cup is still on the soolsang
-              } else {
-                SetStripLedOff(strip);
+              if (gDrink == 0) {
+                setCupState(CA_DRINKING);
                 DrawDotMatrix(lc, gCount);
-                gCount -= 1;
-                gGameState = CA_GAMENOTSTART;
+                SetStripLedOff(strip);
+              } else {
+                float val = getWeight();
+                if (val > -5) {
+                  // nothing..cup is still on the soolsang
+                } else {
+                  SetStripLedOff(strip);
+                  DrawDotMatrix(lc, gCount);
+                  gGameState = CA_GAMENOTSTART;
+                  setCupState(CA_DRINKING);
+                  gDrink = 0;
+                }
               }
             }
             gNoti = false;
@@ -385,10 +393,11 @@ void wsReceiveCB()
                     vibratorOn(16, 5);
                     SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
-                    seOh();
+                    seSiren();
                   } else {
                     DrawHappyDotMatrix(lc);
-                    SetStripLedOn(strip, CA_LED_COLOR_WHITE);
+                    SetStripLedOn(strip, CA_LED_COLOR_NONE);
+                    setCupState(CA_DRINKING);
                   }
                 } else if (gGameKind == CA_LOVESHOT) {
                   if (gDrink == 1) {
@@ -398,10 +407,9 @@ void wsReceiveCB()
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
                   } else {
                     ClearDotMatrix(lc);
-                    SetStripLedOn(strip, CA_LED_COLOR_WHITE);
+                    SetStripLedOn(strip, CA_LED_COLOR_NONE);
                   }
                 }
-                gDrink = 0;
               }
             } else if (strcmp(cmd, "restart") == 0) {
               Serial.println("Restart");
