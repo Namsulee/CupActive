@@ -23,15 +23,18 @@
 #if defined(HOME)
   const char* ssid     = "ynshero-main";
   const char* password = "qa1ws2ed3";
+  char host[] = "192.168.0.8";
 #elif defined(MAKERS)
   const char* ssid     = "RoomC02";
   const char* password = "pwningsdrm";
+  char host[] = "192.168.1.12";
 #else
   const char* ssid     = "soolsang";
   const char* password = "soolsang123";
+  char host[] = "192.168.0.12";
 #endif
 char path[] = "/ws";
-char host[] = "192.168.0.8";
+
 
 
 // define serial speed
