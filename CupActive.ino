@@ -43,6 +43,9 @@ int gEmptyCheckCnt;
 int gRandom;
 int gNoti;
 
+int scaleNote[2][7] = {{262,294,330,349,392,440,494},{523,587,659,699,784,880,988}};
+int duration = 80;        //음의 지속시간 (ms)
+int delaytime = 200;    //delay 시간 
 
 void setup() {
   gState = CA_INIT;
@@ -174,7 +177,7 @@ void loop() {
               int cal = 0;
               uint8_t portion = 0;
               if (inside > 0) {
-                cal = inside * 2.55f;
+                cal = inside * 1.3f;
                 if (cal > 255) {
                   portion = 255;
                 } else {
@@ -200,7 +203,8 @@ void loop() {
             } else if (gGameState == CA_GAMESTART) {
               if (gRandom == true) {
                 gRandom = false;
-                seOh();
+                int n = random(0, 7);
+                soundEffect(n);
                 DrawFullDotMatrix(lc);
               } else {
                 gRandom = true;
@@ -398,6 +402,8 @@ void wsReceiveCB()
                     DrawHappyDotMatrix(lc);
                     SetStripLedOn(strip, CA_LED_COLOR_NONE);
                     setCupState(CA_DRINKING);
+                    delay(2000);
+                    DrawDotMatrix(lc, gCount);
                   }
                 } else if (gGameKind == CA_LOVESHOT) {
                   if (gDrink == 1) {
@@ -408,6 +414,8 @@ void wsReceiveCB()
                   } else {
                     ClearDotMatrix(lc);
                     SetStripLedOn(strip, CA_LED_COLOR_NONE);
+                    delay(2000);
+                    DrawDotMatrix(lc, gCount);
                   }
                 }
               }
@@ -548,6 +556,7 @@ void seOh(void)
   }
 }
 
+
 void seCoo(void) 
 {
   int i;
@@ -555,6 +564,36 @@ void seCoo(void)
   for (i = 0; i < 150; i = i + 10) {
     beep(BUZZER_PIN, 1295 - i, 22);
     beep(BUZZER_PIN, 1295 + i, 22);
+  }
+}
+
+void soundEffect(int i)
+{
+  switch(i){
+    case 0:
+      tone(BUZZER_PIN,scaleNote[1][2],duration);
+      break;
+    case 1:
+      tone(BUZZER_PIN,scaleNote[1][2],duration);
+      break;
+    case 2:
+      tone(BUZZER_PIN,scaleNote[1][2],duration*1.5);
+      break;
+    case 3:
+      tone(BUZZER_PIN,scaleNote[1][0],duration);
+      break;
+    case 4:
+      tone(BUZZER_PIN,scaleNote[1][2],duration);
+      break;
+    case 5:
+      tone(BUZZER_PIN,scaleNote[1][4],duration*1.5);
+     break;
+    case 6:
+     tone(BUZZER_PIN,scaleNote[0][4],duration);
+     break;
+    default:
+      tone(BUZZER_PIN,scaleNote[0][4],duration);
+     break;
   }
 }
 
