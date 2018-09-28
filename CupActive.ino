@@ -40,8 +40,10 @@ int gGameKind;
 int gDrink;
 int gGameState;
 int gEmptyCheckCnt;
+int gNotEmptyCheckCnt;
 int gRandom;
 int gNoti;
+volatile float preValue = 0;
 
 int scaleNote[2][7] = {{262,294,330,349,392,440,494},{523,587,659,699,784,880,988}};
 int duration = 80;        //음의 지속시간 (ms)
@@ -68,7 +70,7 @@ void setup() {
   wifiThread.onRun(wsReceiveCB);
   wifiThread.setInterval(300);
       
-  Serial.println("Start wifi Setup as STA mode");
+  //Serial.println("Start wifi Setup as STA mode");
   //WiFiManager wifiManager;
   //wifiManager.autoConnect();
   WiFi.begin(ssid, password); 
@@ -249,7 +251,13 @@ void loop() {
           break;
         case CA_EMPTY:
           if (false == checkEmpty(gCup)) {
+            gNotEmptyCheckCnt++;
+            if (gNotEmptyCheckCnt > CRITERIA_DEFAULT_CNT) {
+              Serial.println("Not Empty");
               gState = CA_DRINKING;
+            }
+          } else {
+            gNotEmptyCheckCnt = 0;
           }
           break;
         case CA_ERROR:
@@ -398,6 +406,7 @@ void wsReceiveCB()
                     SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
                     seSiren();
+                    delay(2000);
                   } else {
                     DrawHappyDotMatrix(lc);
                     SetStripLedOn(strip, CA_LED_COLOR_NONE);
@@ -411,6 +420,8 @@ void wsReceiveCB()
                     vibratorOn(16, 5);
                     SetStripLedBrightness(strip, LED_BRIGHTNESS_MAX);
                     SetStripLedOn(strip, CA_LED_COLOR_WHITE);
+                    seSiren();
+                    delay(2000);
                   } else {
                     ClearDotMatrix(lc);
                     SetStripLedOn(strip, CA_LED_COLOR_NONE);
@@ -421,6 +432,7 @@ void wsReceiveCB()
               }
             } else if (strcmp(cmd, "restart") == 0) {
               Serial.println("Restart");
+              callibrateScale();
               ClearDotMatrix(lc);
               setCupState(CA_REGISTERED);
               gNoti = false;
