@@ -8,16 +8,16 @@
   float CALIBRATION_FACTOR = -2860.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 #elif defined(JM)
   #define UNIQUE_ID "JM"
-  float CALIBRATION_FACTOR = -3070.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+  float CALIBRATION_FACTOR = -3020.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 #elif defined(YS)
   #define UNIQUE_ID "YS"
   float CALIBRATION_FACTOR = -2860.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 #elif defined(BC)
   #define UNIQUE_ID "BC"
-  float CALIBRATION_FACTOR = -2860.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+  float CALIBRATION_FACTOR = -2890.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 #else
   #define UNIQUE_ID "JY"
-  float CALIBRATION_FACTOR = -2860.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
+  float CALIBRATION_FACTOR = -2870.0; //This value is obtained using the SparkFun_HX711_Calibration sketch
 #endif
 
 #if defined(HOME)
